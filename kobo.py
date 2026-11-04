@@ -221,13 +221,14 @@ def resumen_dia(dia: dict | None) -> dict:
         return {"estado": None}
     if dia["trabajo"]:
         acts = dia["actividades"]
-        lineas = [f"{a['tipo']} - {a['tema']} ({a['participacion']})" for a in acts if a["tipo"] or a["tema"]]
+        lineas = [f"{a['participacion']}, {a['tipo']} {a['tema']}".strip(" ,") for a in acts
+                  if a["participacion"] or a["tipo"] or a["tema"]]
         comunidades = list(dict.fromkeys(a["comunidad"] for a in acts if a["comunidad"]))
         return {"estado": "trabajo", "actividades": "\n".join(lineas),
                 "comunidades": "\n".join(comunidades),
                 "familias": sum(a["familias"] for a in acts), "horas": 8}
     return {"estado": "feriado" if dia["feriado"] else "no_laborado",
-            "actividades": "Feriado" if dia["feriado"] else "No laborado", "horas": 0}
+            "actividades": "ASUETO" if dia["feriado"] else "No laborado", "horas": 0}
 
 
 def datos_reporte(registros: list, clave: str, anio: int, mes: int) -> dict:
@@ -276,7 +277,7 @@ def tablas_nacionales(registros: list):
             if d["slot"] not in slots or d["trabajo"] is None:
                 continue
             res = resumen_dia(d)
-            estado = {"trabajo": "Trabajó", "feriado": "Feriado", "no_laborado": "No laborado"}[res["estado"]]
+            estado = {"trabajo": "Trabajó", "feriado": "Asueto", "no_laborado": "No laborado"}[res["estado"]]
             fecha = slots[d["slot"]]
             dias.append({**base, "Fecha": fecha, "Estado": estado, "Horas": res["horas"],
                          "Actividades (#)": len(d["actividades"]) if d["trabajo"] else 0,
