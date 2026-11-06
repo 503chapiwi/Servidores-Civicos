@@ -8,7 +8,8 @@ from pathlib import Path
 
 import streamlit as st
 
-from kobo import MESES, KoboClient, datos_reporte, excel_nacional, parse_all, semanas_del_mes
+from kobo import (DEPARTAMENTOS, MESES, KoboClient, datos_reporte, excel_nacional, parse_all,
+                  semanas_del_mes, slug)
 from reporte import generar_reporte
 
 PLANTILLA = Path(__file__).parent / "plantilla.xlsx"
@@ -23,25 +24,64 @@ def secreto(nombre, defecto=None):
         return defecto
 
 
-# ------------------------------------------------------------------ contraseña
-def pedir_contrasena() -> bool:
-    if st.session_state.get("ok"):
+# ------------------------------------------------------------------ acceso por departamento
+NACIONAL = "__nacional__"
+MAX_INTENTOS = 5
+
+
+def contrasena_de(depto: str):
+    """Contraseña configurada en Secrets para un departamento (o la nacional)."""
+    if depto == NACIONAL:
+        return secreto("ADMIN_PASSWORD") or secreto("APP_PASSWORD")
+    try:
+        return st.secrets["passwords"][depto]
+    except (KeyError, FileNotFoundError):
+        return None
+
+
+def pedir_acceso() -> bool:
+    if st.session_state.get("depto"):
         return True
     st.title("Reportes de servicio cívico")
+    opciones = [slug(d) for d in DEPARTAMENTOS] + [NACIONAL]
+    nombres = {slug(d): d for d in DEPARTAMENTOS} | {NACIONAL: "Nacional (todos los departamentos)"}
+    intentos = st.session_state.get("intentos", 0)
+    if intentos >= MAX_INTENTOS:
+        st.error("Demasiados intentos fallidos. Cierra esta pestaña y vuelve a abrir la página.")
+        return False
     with st.form("login"):
+        depto = st.selectbox("Departamento", opciones, format_func=nombres.get, index=None,
+                             placeholder="Elige tu departamento")
         clave = st.text_input("Contraseña", type="password")
         entrar = st.form_submit_button("Entrar")
     if entrar:
-        esperada = secreto("APP_PASSWORD")
-        if esperada and hmac.compare_digest(clave.encode(), str(esperada).encode()):
-            st.session_state["ok"] = True
+        esperada = contrasena_de(depto) if depto else None
+        if depto is None:
+            st.error("Elige un departamento.")
+        elif not esperada:
+            st.error(f"{nombres[depto]} todavía no tiene acceso habilitado. "
+                     "Pide la contraseña al coordinador nacional.")
+        elif hmac.compare_digest(clave.encode(), str(esperada).encode()):
+            st.session_state["depto"] = depto
+            st.session_state["depto_nombre"] = nombres[depto]
+            st.session_state.pop("intentos", None)
             st.rerun()
-        st.error("Contraseña incorrecta.")
+        else:
+            st.session_state["intentos"] = intentos + 1
+            st.error("Contraseña incorrecta.")
     return False
 
 
-if not pedir_contrasena():
+if not pedir_acceso():
     st.stop()
+
+DEPTO = st.session_state["depto"]
+with st.sidebar:
+    st.write(f"**Acceso:** {st.session_state['depto_nombre']}")
+    if st.button("Cerrar sesión"):
+        for k in ("depto", "depto_nombre"):
+            st.session_state.pop(k, None)
+        st.rerun()
 
 
 # ------------------------------------------------------------------ datos
@@ -69,8 +109,12 @@ except Exception as e:  # mensaje claro en vez de un error técnico
     st.error(f"No se pudieron leer los datos de Kobo: {e}")
     st.stop()
 
+# Cada coordinador solo ve los envíos de su departamento
+if DEPTO != NACIONAL:
+    registros = [r for r in registros if r["depto"] == DEPTO]
+
 if not registros:
-    st.info("Todavía no hay envíos en el formulario.")
+    st.info(f"Todavía no hay envíos de {st.session_state['depto_nombre']}.")
     st.stop()
 
 # --- servidores, agrupados por CUI/NIT (se muestra el nombre del envío más reciente)
@@ -118,9 +162,11 @@ st.download_button("Descargar reporte", archivo, file_name=nombre_archivo, type=
                    use_container_width=True)
 st.caption("El nombre del Encargado Departamental y las firmas se completan a mano.")
 
-with st.expander("Base de datos nacional (todas las actividades)"):
-    st.write("Un Excel con una fila por actividad y una fila por día de todos los servidores, "
-             "para análisis. Si una semana se envió dos veces, se usa el envío más reciente.")
+alcance = "nacional" if DEPTO == NACIONAL else st.session_state["depto_nombre"]
+with st.expander(f"Base de datos ({alcance}): todas las actividades"):
+    st.write("Un Excel con una fila por actividad y una fila por día de todos los servidores"
+             + ("" if DEPTO == NACIONAL else f" de {alcance}")
+             + ", para análisis. Si una semana se envió dos veces, se usa el envío más reciente.")
     st.download_button("Descargar base de datos", excel_nacional(registros),
-                       file_name="Servicio_civico_base_nacional.xlsx",
+                       file_name=f"Servicio_civico_base_{'nacional' if DEPTO == NACIONAL else DEPTO}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
