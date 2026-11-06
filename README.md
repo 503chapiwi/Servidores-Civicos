@@ -1,25 +1,35 @@
 # Procesador de reportes de servicio cívico (MAGA)
 
-Streamlit app that reads the Kobo form *Servidor Cívico Timesheets* and fills the
-"Reporte de horas de servicio cívico" template (`plantilla.xlsx`) for one servidor and month.
+Aplicación de Streamlit que lee el formulario de Kobo *Servidor Cívico Informes* y llena la plantilla
+"Reporte de horas de servicio cívico" (`plantilla.xlsx`) para un servidor y un mes.
 
-## Files
-- `app.py` – the Streamlit interface (password → servidor → mes → año → Descargar reporte)
-- `kobo.py` – Kobo API client, parsing of submissions, national database export
-- `reporte.py` – builds the Excel report from `plantilla.xlsx`
-- `plantilla.xlsx` – the September template; replace it to change the look (keep the same row layout)
+## Archivos
+- `app.py` – la interfaz de Streamlit (departamento y contraseña → servidor → mes → año → Descargar reporte)
+- `kobo.py` – conexión con la API de Kobo, lectura de los envíos y exportación de la base de datos
+- `reporte.py` – genera el reporte en Excel a partir de `plantilla.xlsx`
+- `plantilla.xlsx` – la plantilla de septiembre; reemplázala para cambiar el diseño (mantén la misma estructura de filas)
 
-## Deploy on Streamlit Community Cloud
-1. Push this folder to a GitHub repo (the repo can be private).
-2. On share.streamlit.io: **Create app** → pick the repo, branch `main`, main file `app.py`.
-3. **Advanced settings → Secrets**: paste the contents of `.streamlit/secrets.toml.example`
-   with your real password and Kobo API key. Never commit real secrets to GitHub.
-4. Deploy. Changing secrets later: App → Settings → Secrets.
+## Publicar en Streamlit Community Cloud
+1. Sube esta carpeta a un repositorio de GitHub (puede ser privado).
+2. En share.streamlit.io: **Create app** → elige el repositorio, la rama `main` y el archivo principal `app.py`.
+3. En **Advanced settings → Secrets**, pega el contenido de `.streamlit/secrets.toml.example`
+   con las contraseñas reales y la llave de API de Kobo. Nunca subas contraseñas ni llaves reales a GitHub.
+4. Publica la aplicación. Para cambiar los secretos después: App → Settings → Secrets.
 
-## Rules applied
-- Worked day: 8:00–16:00, 8 hours. Activities written as `Tipo - Tema (Participación)`, one line each;
-  communities one per line; families = sum for the day.
-- Not worked + feriado: "Feriado", 0 hours. Not worked + not feriado: "No laborado", 0 hours.
-- Week not submitted: dates shown, rows blank. Week submitted twice: latest submission wins.
-- Servidores are grouped by CUI/NIT (spaces, dashes and dots ignored); the newest name is shown.
-- Data are cached for 10 minutes; the **Actualizar datos** button reloads from Kobo.
+## Acceso por departamento
+La pantalla de inicio tiene una lista con los 22 departamentos y la opción "Nacional". Cada departamento
+tiene su propia contraseña en la sección `[passwords]` de Secrets; el coordinador de un departamento solo
+ve los servidores, reportes y datos de su departamento. Los departamentos sin contraseña no pueden entrar.
+`ADMIN_PASSWORD` (o la anterior `APP_PASSWORD`) da acceso nacional.
+
+Para habilitar un departamento, agrega una línea como `quiche = "..."` en `[passwords]` y guarda.
+No hace falta cambiar el código ni volver a publicar. Los nombres van sin tildes, en minúsculas y con
+`_` en lugar de espacios (por ejemplo `alta_verapaz`, `san_marcos`).
+
+## Reglas que aplica el procesador
+- Día trabajado: 8:00–16:00, 8 horas. Las actividades se escriben como `Participación, Tipo Tema`,
+  una por línea; las comunidades, una por línea; las familias atendidas son la suma del día.
+- Día no trabajado y asueto: "ASUETO", 0 horas. Día no trabajado sin asueto: "No laborado", 0 horas.
+- Semana no enviada: aparecen las fechas con las filas en blanco. Semana enviada dos veces: se usa el envío más reciente.
+- Los servidores se agrupan por CUI/NIT (se ignoran espacios, guiones y puntos); se muestra el nombre más reciente.
+- Los datos se guardan en memoria por 10 minutos; el botón **Actualizar datos** los vuelve a descargar de Kobo.
