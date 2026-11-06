@@ -17,6 +17,17 @@ def norm(texto) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+DEPARTAMENTOS = ["Alta Verapaz", "Baja Verapaz", "Chimaltenango", "Chiquimula", "El Progreso",
+                 "Escuintla", "Guatemala", "Huehuetenango", "Izabal", "Jalapa", "Jutiapa", "Petén",
+                 "Quetzaltenango", "Quiché", "Retalhuleu", "Sacatepéquez", "San Marcos", "Santa Rosa",
+                 "Sololá", "Suchitepéquez", "Totonicapán", "Zacapa"]
+
+
+def slug(texto) -> str:
+    """'Sacatepéquez' -> 'sacatepequez', 'Alta Verapaz' -> 'alta_verapaz'."""
+    return norm(texto).replace(" ", "_")
+
+
 def norm_cui(cui, nombre) -> str:
     c = re.sub(r"[\s\-\.]", "", str(cui or "")).upper()
     return c or "SIN-CUI:" + norm(nombre)
@@ -173,6 +184,7 @@ def parse_submission(sub: dict, etiqueta) -> dict | None:
         "cui": str(_buscar(sub, "cui") or "").strip(),
         "clave": norm_cui(_buscar(sub, "cui"), nombre),
         "departamento": etiqueta("departamento", _buscar(sub, "departamento")),
+        "depto": slug(etiqueta("departamento", _buscar(sub, "departamento"))),
         "municipio": etiqueta("municipio", _buscar(sub, "municipio")),
         "anio": anio, "mes": mes, "semana": semana,
         "dias": dias,
